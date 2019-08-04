@@ -149,6 +149,61 @@ exports.onDeletePost = functions.firestore
     });
 
 
+exports.onCreateActivityFeedItem = functions.firestore
+    .document('/feed/{userId}/feedItems/{activityId}')
+    .onCreate(async (snap, context) => {
+        const { userId, activityId } = context.params;
+
+        const userRef = admin.firestore()
+            .doc(`users/${userId}`);
+        const doc = await userRef.get();
+
+        const { androidNotificationToken } = doc.data();
+
+        if (androidNotificationToken) {
+            sendNotification(androidNotificationToken, snap.data());
+        } else {
+            console.log('No token for user');
+
+        }
+
+        sendNotification = (token, activityFeedItem) => {
+            let body;
+            switch (activityFeedItem.type) {
+                case 'comment':
+                    body = `${activityFeedItem.username} replied: ${activityFeedItem.commentData}`;
+                    break;
+                case 'like':
+                    body = `${activityFeedItem.username} liked your post`;
+                    break;
+                case 'follow':
+                    body = `${activityFeedItem.username} started following you`;
+                    break;
+
+                default:
+                    break;
+            }
+
+            const message = {
+                notification: {
+                    body
+                },
+                token: token,
+                data: { recipient: userId }
+            }
+
+            admin.messaging()
+                .send(message)
+                .then((response) => {
+                    console.log('successfully sent message', response)
+                })
+                .catch((err) => {
+                    console.log('Error sending message', err)
+                })
+        }
+
+    });
+
 
 
 
